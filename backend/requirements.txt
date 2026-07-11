@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+pymysql
+python-dotenv
+pandas
+numpy
+scikit-learn
+joblib
+google-generativeai
+cryptography
