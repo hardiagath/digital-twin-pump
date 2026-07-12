@@ -23,6 +23,7 @@ class SensorReadingResponse(BaseModel):
     flow_rate: float
     anomaly_score: float
     risk_level: str
+    pump_part:     Optional[str] = None 
     timestamp: datetime
 
     class Config:

@@ -1,35 +1,65 @@
+import os
+import sys
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import joblib
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.database import SessionLocal
-from app.models.models import SensorReading
+# ── Resolve paths relative to this file, not working directory ────────────
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH  = os.path.join(BASE_DIR, "ml", "isolation_forest.pkl")
+SCALER_PATH = os.path.join(BASE_DIR, "ml", "scaler.pkl")
+DATA_PATH   = os.path.join(BASE_DIR, "data", "pump_sensor_data.csv")
 
-# Feature columns for training 
 FEATURES = ["temperature", "vibration", "pressure", "rpm", "flow_rate"]
-MODEL_PATH = "backend/ml/isolation_forest.pkl"
-SCALER_PATH = "backend/ml/scaler.pkl"
+
+# Normal operating ranges (mean, std) for Z-score calculation
+NORMAL_RANGES = {
+    "temperature": (75.0,  3.0),
+    "vibration":   (2.5,   0.3),
+    "pressure":    (4.5,   0.2),
+    "rpm":         (1480.0, 20.0),
+    "flow_rate":   (120.0,  5.0),
+}
+
+# Sensor → pump part mapping
+SENSOR_PART_MAP = {
+    "temperature": "bearing",
+    "vibration":   "bearing",
+    "pressure":    "seal",
+    "rpm":         "motor",
+    "flow_rate":   "impeller",
+}
 
 
-# Pump part mapping based on which sensor is most anomalous 
-def identify_pump_part(row: dict, z_scores: dict) -> str:
-    mapping = {
-        "temperature": "bearing",
-        "vibration":   "bearing",
-        "pressure":    "seal",
-        "rpm":         "motor",
-        "flow_rate":   "impeller"
-    }
-    worst = max(z_scores, key=lambda k: abs(z_scores[k]))
-    return mapping.get(worst, "unknown")
+# ── Load model and scaler once, reuse across calls ────────────────────────
+_model  = None
+_scaler = None
+
+def load_artifacts():
+    global _model, _scaler
+    if _model is None or _scaler is None:
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(
+                f"Model not found at {MODEL_PATH}. Run train() first."
+            )
+        if not os.path.exists(SCALER_PATH):
+            raise FileNotFoundError(
+                f"Scaler not found at {SCALER_PATH}. Run train() first."
+            )
+        _model  = joblib.load(MODEL_PATH)
+        _scaler = joblib.load(SCALER_PATH)
+    return _model, _scaler
 
 
-# Risk level
+# ── Identify which pump part is most affected ─────────────────────────────
+def identify_pump_part(z_scores: dict) -> str:
+    worst_sensor = max(z_scores, key=lambda k: z_scores[k])
+    return SENSOR_PART_MAP.get(worst_sensor, "unknown")
+
+
+# ── Map anomaly score to risk level ───────────────────────────────────────
 def get_risk_level(score: float) -> str:
     if score >= 0.6:
         return "critical"
@@ -38,9 +68,17 @@ def get_risk_level(score: float) -> str:
     return "normal"
 
 
-# Train model
+# ── Train and save model ──────────────────────────────────────────────────
 def train():
-    df = pd.read_csv("backend/data/pump_sensor_data.csv")
+    if not os.path.exists(DATA_PATH):
+        raise FileNotFoundError(f"Dataset not found at {DATA_PATH}")
+
+    df = pd.read_csv(DATA_PATH)
+
+    missing = [f for f in FEATURES if f not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns in dataset: {missing}")
+
     X = df[FEATURES]
 
     scaler = StandardScaler()
@@ -48,58 +86,54 @@ def train():
 
     model = IsolationForest(
         n_estimators=100,
-        contamination=0.05,   # ~5% of data expected to be anomalous
+        contamination=0.05,
         random_state=42
     )
     model.fit(X_scaled)
 
     joblib.dump(model, MODEL_PATH)
     joblib.dump(scaler, SCALER_PATH)
-    print("Model and scaler saved successfully")
+
+    print(f"Model saved  → {MODEL_PATH}")
+    print(f"Scaler saved → {SCALER_PATH}")
 
 
-# Score a single reading 
+# ── Score a single reading (dict input) ───────────────────────────────────
 def score_reading(reading: dict) -> dict:
-    model = joblib.load(MODEL_PATH)
-    scaler = joblib.load(SCALER_PATH)
+    model, scaler = load_artifacts()
 
-    # Normal sensor ranges for Z-score comparison
-    normal_ranges = {
-        "temperature": (75, 3),
-        "vibration":   (2.5, 0.3),
-        "pressure":    (4.5, 0.2),
-        "rpm":         (1480, 20),
-        "flow_rate":   (120, 5)
-    }
+    # Always pass a DataFrame to avoid feature-name mismatch warning
+    X = pd.DataFrame([{f: reading[f] for f in FEATURES}])
+    X_scaled = scaler.transform(X)
 
-    values = np.array([[reading[f] for f in FEATURES]])
-    scaled = scaler.transform(values)
+    raw_score     = model.decision_function(X_scaled)[0]
+    anomaly_score = float(np.clip(1 - (raw_score + 0.5), 0.0, 1.0))
+    anomaly_score = round(anomaly_score, 3)
 
-    raw_score = model.decision_function(scaled)[0]
-
-    # Normalize to 0–1 higher = more anomalous
-    anomaly_score = round(float(1 - (raw_score + 0.5)), 3)
-    anomaly_score = max(0.0, min(1.0, anomaly_score))
-
-    # Z-scores per feature to find worst offending sensor
     z_scores = {
-        f: abs((reading[f] - normal_ranges[f][0]) / normal_ranges[f][1])
+        f: round(abs((reading[f] - NORMAL_RANGES[f][0]) / NORMAL_RANGES[f][1]), 3)
         for f in FEATURES
     }
 
-    pump_part = identify_pump_part(reading, z_scores)
+    pump_part  = identify_pump_part(z_scores)
     risk_level = get_risk_level(anomaly_score)
 
     return {
         "anomaly_score": anomaly_score,
-        "risk_level": risk_level,
-        "pump_part": pump_part,
-        "z_scores": z_scores
+        "risk_level":    risk_level,
+        "pump_part":     pump_part,
+        "z_scores":      z_scores,
     }
 
 
-# Score all unscored DB readings
+# ── Batch score all unscored DB readings efficiently ──────────────────────
 def score_all_readings():
+    sys.path.append(BASE_DIR)
+    from app.database import SessionLocal
+    from app.models.models import SensorReading
+
+    model, scaler = load_artifacts()
+
     db = SessionLocal()
     try:
         readings = (
@@ -107,32 +141,69 @@ def score_all_readings():
             .filter(SensorReading.anomaly_score == 0)
             .all()
         )
+
+        if not readings:
+            print("No unscored readings found.")
+            return
+
         print(f"Scoring {len(readings)} readings...")
 
-        for reading in readings:
-            data = {
-                "temperature": reading.temperature,
-                "vibration":   reading.vibration,
-                "pressure":    reading.pressure,
-                "rpm":         reading.rpm,
-                "flow_rate":   reading.flow_rate
+        # Build DataFrame for batch prediction (efficient)
+        df = pd.DataFrame([
+            {
+                "id":          r.id,
+                "temperature": r.temperature,
+                "vibration":   r.vibration,
+                "pressure":    r.pressure,
+                "rpm":         r.rpm,
+                "flow_rate":   r.flow_rate,
             }
-            result = score_reading(data)
-            reading.anomaly_score = result["anomaly_score"]
-            reading.risk_level    = result["risk_level"]
+            for r in readings
+        ])
 
+        X_scaled    = scaler.transform(df[FEATURES])
+        raw_scores  = model.decision_function(X_scaled)
+        scores      = np.clip(1 - (raw_scores + 0.5), 0.0, 1.0)
+
+        # Z-scores for pump part identification
+        z_score_df = pd.DataFrame({
+            f: np.abs((df[f] - NORMAL_RANGES[f][0]) / NORMAL_RANGES[f][1])
+            for f in FEATURES
+        })
+        worst_sensors = z_score_df.idxmax(axis=1)
+
+        # Map results back to DB objects
+        id_to_reading = {r.id: r for r in readings}
+
+        for i, row in df.iterrows():
+            reading               = id_to_reading[row["id"]]
+            reading.anomaly_score = round(float(scores[i]), 3)
+            reading.risk_level    = get_risk_level(scores[i])
+            reading.pump_part     = SENSOR_PART_MAP.get(worst_sensors[i], "unknown")
+            
         db.commit()
-        print("All readings scored and updated in DB")
+        print("All readings scored successfully")
+
+        # Print distribution
+        dist = {}
+        for r in readings:
+            dist[r.risk_level] = dist.get(r.risk_level, 0) + 1
+        print("Risk distribution:", dist)
 
     except Exception as e:
         db.rollback()
-        print(f"Error: {e}")
+        print(f"Error during scoring: {e}")
+        raise
     finally:
         db.close()
 
 
+# ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("Step 1: Training model...")
+    print("=" * 40)
+    print("Step 1: Training Isolation Forest...")
     train()
-    print("Step 2: Scoring all readings...")
+    print("\nStep 2: Scoring all DB readings...")
     score_all_readings()
+    print("=" * 40)
+    print("ML pipeline complete.")

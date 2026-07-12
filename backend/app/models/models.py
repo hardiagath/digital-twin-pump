@@ -22,6 +22,7 @@ class SensorReading(Base):
     flow_rate = Column(Float)
     anomaly_score = Column(Float, default=0)
     risk_level = Column(String(20), default="normal")
+    pump_part = Column(String(50), nullable=True)
     timestamp = Column(TIMESTAMP, server_default=func.now())
 
 class Alert(Base):
