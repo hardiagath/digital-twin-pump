@@ -34,3 +34,13 @@ class Alert(Base):
     message = Column(String(500))
     is_resolved = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+class Recommendation(Base):
+    __tablename__ = "recommendations"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    alert_id       = Column(Integer, ForeignKey("alerts.id"), unique=True, nullable=False)
+    equipment_id   = Column(Integer, ForeignKey("equipment.id"), nullable=False)
+    pump_part      = Column(String(50))
+    recommendation = Column(String(2000), nullable=False)
+    generated_at   = Column(TIMESTAMP, server_default=func.now())

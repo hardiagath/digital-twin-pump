@@ -7,18 +7,10 @@ sys.path.append(BASE_DIR)
 
 from app.database import SessionLocal
 from app.models.models import SensorReading, Alert, Equipment
+from app.services.risk_service import get_part_message, get_equipment_status
 
-# Trigger alert only after N consecutive anomalous readings
 CONSECUTIVE_THRESHOLD = 3
-MAX_TIME_GAP_SECONDS  = 120   # 2 min gap = not consecutive
-
-PART_MESSAGES = {
-    "bearing":  "Abnormal temperature and vibration detected. Possible bearing wear or lubrication failure.",
-    "seal":     "Pressure drop detected. Possible seal degradation or leakage.",
-    "motor":    "RPM deviation detected. Possible motor fault or electrical issue.",
-    "impeller": "Flow rate drop detected. Possible impeller wear, blockage, or cavitation.",
-    "unknown":  "Multiple sensor anomalies detected. Full inspection recommended.",
-}
+MAX_TIME_GAP_SECONDS  = 120
 
 
 def generate_alerts():
@@ -36,13 +28,13 @@ def generate_alerts():
             return
 
         print(f"Processing {len(readings)} anomalous readings...")
-
         alerts_created = 0
+
         grouped = groupby(readings, key=lambda r: r.equipment_id)
 
         for equipment_id, group in grouped:
-            group_list   = list(group)
-            consecutive  = 1
+            group_list  = list(group)
+            consecutive = 1
 
             for i in range(1, len(group_list)):
                 current  = group_list[i]
@@ -58,9 +50,8 @@ def generate_alerts():
                     consecutive = 1
 
                 if consecutive == CONSECUTIVE_THRESHOLD:
-                    pump_part = getattr(current, "pump_part", None) or "unknown"
+                    pump_part = current.pump_part or "unknown"
 
-                    # Skip if unresolved alert already exists for this part
                     existing = (
                         db.query(Alert)
                         .filter(
@@ -77,40 +68,54 @@ def generate_alerts():
                         equipment_id=equipment_id,
                         pump_part=pump_part,
                         risk_level=current.risk_level,
-                        message=PART_MESSAGES.get(pump_part, PART_MESSAGES["unknown"]),
+                        message=get_part_message(pump_part),
                     )
                     db.add(alert)
                     alerts_created += 1
 
-                    # Update equipment status
-                    equipment = (
-                        db.query(Equipment)
-                        .filter(Equipment.id == equipment_id)
-                        .first()
-                    )
-                    if equipment:
-                        if current.risk_level == "critical":
-                            equipment.status = "critical"
-                        elif equipment.status == "normal":
-                            equipment.status = "warning"
+            # Update equipment status based on all its alerts
+            all_alerts = (
+                db.query(Alert)
+                .filter(
+                    Alert.equipment_id == equipment_id,
+                    Alert.is_resolved  == False,
+                )
+                .all()
+            )
+            risk_levels = [a.risk_level for a in all_alerts]
+            equipment   = (
+                db.query(Equipment)
+                .filter(Equipment.id == equipment_id)
+                .first()
+            )
+            if equipment:
+                equipment.status = get_equipment_status(risk_levels)
 
         db.commit()
-        print(f"Alerts created: {alerts_created}")
 
-        # Print summary
-        alerts = db.query(Alert).all()
-        print(f"Total alerts in DB: {len(alerts)}")
+        total_alerts = db.query(Alert).count()
+        print(f"Alerts created : {alerts_created}")
+        print(f"Total in DB    : {total_alerts}")
+
+        from sqlalchemy import func
+        dist = (
+            db.query(Alert.pump_part, Alert.risk_level, func.count())
+            .group_by(Alert.pump_part, Alert.risk_level)
+            .all()
+        )
+        print("\nAlert distribution:")
+        for part, level, count in dist:
+            print(f"  {part:<12} {level:<10} → {count}")
 
     except Exception as e:
         db.rollback()
-        print(f"Error during alert generation: {e}")
+        print(f"Error: {e}")
         raise
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    print("=" * 40)
-    print("Generating alerts...")
+    print("=" * 45)
     generate_alerts()
-    print("=" * 40)
+    print("=" * 45)

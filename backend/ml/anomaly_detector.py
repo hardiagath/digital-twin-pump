@@ -6,7 +6,7 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
 import joblib
 
-# ── Resolve paths relative to this file, not working directory ────────────
+# Resolved paths relative to this file
 BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH  = os.path.join(BASE_DIR, "ml", "isolation_forest.pkl")
 SCALER_PATH = os.path.join(BASE_DIR, "ml", "scaler.pkl")
@@ -33,7 +33,7 @@ SENSOR_PART_MAP = {
 }
 
 
-# ── Load model and scaler once, reuse across calls ────────────────────────
+# Load model and scaler once
 _model  = None
 _scaler = None
 
@@ -53,13 +53,13 @@ def load_artifacts():
     return _model, _scaler
 
 
-# ── Identify which pump part is most affected ─────────────────────────────
+# Most affected pump part
 def identify_pump_part(z_scores: dict) -> str:
     worst_sensor = max(z_scores, key=lambda k: z_scores[k])
     return SENSOR_PART_MAP.get(worst_sensor, "unknown")
 
 
-# ── Map anomaly score to risk level ───────────────────────────────────────
+# Mapping
 def get_risk_level(score: float) -> str:
     if score >= 0.6:
         return "critical"
@@ -68,7 +68,7 @@ def get_risk_level(score: float) -> str:
     return "normal"
 
 
-# ── Train and save model ──────────────────────────────────────────────────
+# Train and save model
 def train():
     if not os.path.exists(DATA_PATH):
         raise FileNotFoundError(f"Dataset not found at {DATA_PATH}")
@@ -97,12 +97,9 @@ def train():
     print(f"Model saved  → {MODEL_PATH}")
     print(f"Scaler saved → {SCALER_PATH}")
 
-
-# ── Score a single reading (dict input) ───────────────────────────────────
 def score_reading(reading: dict) -> dict:
     model, scaler = load_artifacts()
 
-    # Always pass a DataFrame to avoid feature-name mismatch warning
     X = pd.DataFrame([{f: reading[f] for f in FEATURES}])
     X_scaled = scaler.transform(X)
 
@@ -126,7 +123,7 @@ def score_reading(reading: dict) -> dict:
     }
 
 
-# ── Batch score all unscored DB readings efficiently ──────────────────────
+# Batch score all unscored DB readings efficiently
 def score_all_readings():
     sys.path.append(BASE_DIR)
     from app.database import SessionLocal
@@ -184,7 +181,7 @@ def score_all_readings():
         db.commit()
         print("All readings scored successfully")
 
-        # Print distribution
+        # Print risk distribution for debugging
         dist = {}
         for r in readings:
             dist[r.risk_level] = dist.get(r.risk_level, 0) + 1
@@ -197,8 +194,6 @@ def score_all_readings():
     finally:
         db.close()
 
-
-# ── Entry point ───────────────────────────────────────────────────────────
 if __name__ == "__main__":
     print("=" * 40)
     print("Step 1: Training Isolation Forest...")

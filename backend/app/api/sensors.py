@@ -11,6 +11,7 @@ from app.database import get_db
 from app.models.models import SensorReading
 from app.schemas.schemas import SensorReadingResponse, SensorReadingCreate
 from typing import List
+from app.services.risk_service import classify_overall
 
 router = APIRouter(prefix="/sensors", tags=["Sensors"])
 
@@ -94,4 +95,39 @@ def get_sensor_summary(equipment_id: int, db: Session = Depends(get_db)):
         "pressure":     stats([r.pressure    for r in readings]),
         "rpm":          stats([r.rpm         for r in readings]),
         "flow_rate":    stats([r.flow_rate   for r in readings]),
+    }
+
+@router.post("/classify")
+def classify_reading(payload: SensorReadingCreate, db: Session = Depends(get_db)):
+    """
+    Score + classify a reading combining ML score and sensor thresholds.
+    Used by the simulate feature on the frontend later.
+    """
+    from ml.anomaly_detector import score_reading as ml_score
+
+    data       = payload.dict()
+    ml_result  = ml_score(data)
+
+    sensor_values = {
+        k: data[k] for k in
+        ["temperature", "vibration", "pressure", "rpm", "flow_rate"]
+    }
+    risk_result = classify_overall(ml_result["risk_level"], sensor_values)
+
+    reading = SensorReading(
+        **data,
+        anomaly_score=ml_result["anomaly_score"],
+        risk_level=risk_result["final_risk"],
+        pump_part=ml_result["pump_part"],
+    )
+    db.add(reading)
+    db.commit()
+    db.refresh(reading)
+
+    return {
+        "reading_id":    reading.id,
+        "anomaly_score": ml_result["anomaly_score"],
+        "pump_part":     ml_result["pump_part"],
+        "z_scores":      ml_result["z_scores"],
+        "risk":          risk_result,
     }

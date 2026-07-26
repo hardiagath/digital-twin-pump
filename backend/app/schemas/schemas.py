@@ -48,3 +48,19 @@ class SensorReadingCreate(BaseModel):
     pressure: float
     rpm: float
     flow_rate: float
+
+class RecommendationResponse(BaseModel):
+    id:             int
+    alert_id:       int
+    equipment_id:   int
+    pump_part:      Optional[str]
+    recommendation: str
+    generated_at:   datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RecommendationRequest(BaseModel):
+    alert_id:     int
+    equipment_id: int

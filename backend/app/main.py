@@ -21,3 +21,4 @@ app.include_router(alerts.router)
 @app.get("/")
 def root():
     return {"message": "Digital Twin Pump API is running"}
+
