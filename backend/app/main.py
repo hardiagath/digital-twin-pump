@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from app.database import engine, Base
-from app.api import equipment, sensors, alerts
+from app.api import equipment, sensors, alerts, recommendations
 
 Base.metadata.create_all(bind=engine)
 
@@ -14,11 +15,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register all API routers
 app.include_router(equipment.router)
 app.include_router(sensors.router)
 app.include_router(alerts.router)
+app.include_router(recommendations.router)
+
 
 @app.get("/")
 def root():
     return {"message": "Digital Twin Pump API is running"}
-

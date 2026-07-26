@@ -6,7 +6,7 @@ load_dotenv()
 
 # Configure Gemini once at module level
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-_model = genai.GenerativeModel("gemini-1.5-flash")
+_model = genai.GenerativeModel("gemini-3.5-flash")
 
 
 def _build_prompt(context: dict) -> str:

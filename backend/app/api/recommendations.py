@@ -66,8 +66,9 @@ def generate_all_recommendations(db: Session = Depends(get_db)):
         try:
             fetch_or_create_recommendation(alert.id, db)
             generated += 1
-        except Exception:
+        except Exception as e:
             failed += 1
+            print(f"Failed to generate recommendation for Alert {alert.id}: {e}")
 
     return {
         "generated": generated,
