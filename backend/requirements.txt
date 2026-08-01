@@ -9,3 +9,5 @@ scikit-learn
 joblib
 google-generativeai
 cryptography
+python-jose[cryptography]
+bcrypt

@@ -1,6 +1,10 @@
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+OUT_PATH = os.path.join(DATA_DIR, "pump_sensor_data.csv")
 
 np.random.seed(42)
 n = 2000
@@ -31,5 +35,5 @@ df = pd.DataFrame({
     "flow_rate": np.round(flow_rate, 2)
 })
 
-df.to_csv("backend/data/pump_sensor_data.csv", index=False)
+df.to_csv(OUT_PATH, index=False)
 print(f"Dataset created: {len(df)} rows, {len(fault_indices)} anomalies injected")

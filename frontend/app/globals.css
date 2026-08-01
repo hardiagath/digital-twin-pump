@@ -1,5 +1,56 @@
 @import "tailwindcss";
 
+
+:root {
+  --background:        #f2f4ee;
+  --surface:            #ffffff;
+  --surface-hover:      #eef1e7;
+  --border:             #dfe3d6;
+  --foreground:         #14170d;
+  --muted-foreground:   #5c6152;
+
+  --accent:             #37402a;
+  --accent-foreground:  #f2f4ee;
+
+  --risk-normal:        #2f9e44;
+  --risk-warning:       #b8860b;
+  --risk-critical:      #d33d3d;
+
+  --chart-grid:         #e2e5db;
+}
+
+.dark {
+  --background:         #0a0a08;
+  --surface:            #131410;
+  --surface-hover:      #191b14;
+  --border:             #232519;
+  --foreground:         #f5f5f0;
+  --muted-foreground:   #9a9d8f;
+
+  --accent:             #cfd9b6;
+  --accent-foreground:  #14170d;
+
+  --risk-normal:        #6fcf78;
+  --risk-warning:       #e8b94d;
+  --risk-critical:      #ef5b5b;
+
+  --chart-grid:         #232519;
+}
+
+@theme inline {
+  --color-background:         var(--background);
+  --color-surface:             var(--surface);
+  --color-surface-hover:       var(--surface-hover);
+  --color-border:              var(--border);
+  --color-foreground:          var(--foreground);
+  --color-muted-foreground:    var(--muted-foreground);
+  --color-accent:              var(--accent);
+  --color-accent-foreground:   var(--accent-foreground);
+  --color-risk-normal:         var(--risk-normal);
+  --color-risk-warning:        var(--risk-warning);
+  --color-risk-critical:       var(--risk-critical);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -11,8 +62,9 @@ body {
 }
 
 body {
-  background: #030712;
-  color: white;
+  background: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 ::-webkit-scrollbar {
@@ -20,10 +72,28 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #111827;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: var(--border);
   border-radius: 3px;
+}
+
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.75rem;
+}
+
+.card-accent {
+  background: var(--accent);
+  color: var(--accent-foreground);
+  border-radius: 1.75rem;
+}
+
+.pill {
+  border: 1px solid var(--border);
+  border-radius: 9999px;
 }

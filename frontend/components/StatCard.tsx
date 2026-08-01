@@ -1,4 +1,4 @@
-import { riskBg, RiskLevel } from "@/lib/utils";
+import { riskColor, RiskLevel } from "@/lib/utils";
 import clsx from "clsx";
 
 interface Props {
@@ -9,15 +9,22 @@ interface Props {
   subtitle?: string;
 }
 
-export default function StatCard({ title, value, unit, risk = "normal", subtitle }: Props) {
+export default function StatCard({ title, value, unit, risk, subtitle }: Props) {
   return (
-    <div className={clsx("rounded-xl p-4 flex flex-col gap-1", riskBg(risk))}>
-      <p className="text-xs text-gray-400 uppercase tracking-wider">{title}</p>
-      <p className="text-2xl font-bold text-white">
+    <div className="card p-5 flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground uppercase tracking-wider">{title}</p>
+      <p
+        className={clsx(
+          "text-3xl font-medium tracking-tight",
+          risk ? riskColor(risk) : "text-foreground"
+        )}
+      >
         {value}
-        {unit && <span className="text-sm font-normal text-gray-400 ml-1">{unit}</span>}
+        {unit && (
+          <span className="text-sm font-normal text-muted-foreground ml-1.5">{unit}</span>
+        )}
       </p>
-      {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
     </div>
   );
 }

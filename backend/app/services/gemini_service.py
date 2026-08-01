@@ -4,16 +4,13 @@ import google.generativeai as genai
 
 load_dotenv()
 
-# Configure Gemini once at module level
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 _model = genai.GenerativeModel("gemini-3.5-flash")
 
 
 def _build_prompt(context: dict) -> str:
     """
-    Build a detailed prompt from alert context.
-    context keys: pump_part, risk_level, equipment_name,
-                  sensor_values, z_scores, trend
+    Builds the Gemini prompt using alert and sensor data.
     """
     sensor_block = "\n".join([
         f"  - {k.replace('_', ' ').title()}: {v['value']} "
@@ -46,8 +43,7 @@ Keep the total response under 200 words. Be specific to centrifugal pump mechani
 
 def get_recommendation(context: dict) -> str:
     """
-    Call Gemini API and return the recommendation text.
-    Raises an exception if the API call fails.
+    Generates an AI maintenance recommendation.
     """
     prompt   = _build_prompt(context)
     response = _model.generate_content(prompt)

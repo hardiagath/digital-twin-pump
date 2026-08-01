@@ -6,8 +6,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.database import SessionLocal
 from app.models.models import SensorReading
 
+DATA_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(DATA_DIR, "pump_sensor_data.csv")
+
 def ingest():
-    df = pd.read_csv("backend/data/pump_sensor_data.csv")
+    df = pd.read_csv(CSV_PATH)
     db = SessionLocal()
 
     try:

@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base
-from app.api import equipment, sensors, alerts, recommendations, trends
+from app.api import equipment, sensors, alerts, recommendations, trends, auth
+from app.auth import get_current_user
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -23,11 +24,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(equipment.router)
-app.include_router(sensors.router)
-app.include_router(alerts.router)
-app.include_router(recommendations.router)
-app.include_router(trends.router)
+protected = [Depends(get_current_user)]
+
+# Public — no token required to log in
+app.include_router(auth.router)
+
+# Everything else requires a valid bearer token
+app.include_router(equipment.router, dependencies=protected)
+app.include_router(sensors.router, dependencies=protected)
+app.include_router(alerts.router, dependencies=protected)
+app.include_router(recommendations.router, dependencies=protected)
+app.include_router(trends.router, dependencies=protected)
 
 @app.get("/")
 def root():

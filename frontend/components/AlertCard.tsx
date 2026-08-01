@@ -4,6 +4,7 @@ import { riskBadge, formatTimestamp, RiskLevel } from "@/lib/utils";
 import { resolveAlert, getRecommendation } from "@/lib/api";
 import { useState } from "react";
 import { CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 export default function AlertCard({
   alert,
@@ -43,33 +44,33 @@ export default function AlertCard({
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-3">
+    <div className="card p-4 flex flex-col gap-3">
       <div className="flex items-start justify-between gap-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className={riskBadge(alert.risk_level as RiskLevel)}>
               {alert.risk_level}
             </span>
-            <span className="text-sm font-semibold capitalize text-white">
+            <span className="text-sm font-semibold capitalize text-foreground">
               {alert.pump_part}
             </span>
           </div>
-          <p className="text-sm text-gray-400">{alert.message}</p>
-          <p className="text-xs text-gray-600">{formatTimestamp(alert.created_at)}</p>
+          <p className="text-sm text-muted-foreground">{alert.message}</p>
+          <p className="text-xs text-muted-foreground/70">{formatTimestamp(alert.created_at)}</p>
         </div>
 
         <div className="flex gap-2 shrink-0">
           <button
             onClick={handleResolve}
             disabled={resolving}
-            className="text-green-400 hover:text-green-300 transition-colors"
+            className="text-risk-normal hover:opacity-80 transition-opacity disabled:opacity-40"
             title="Resolve alert"
           >
             <CheckCircle size={18} />
           </button>
           <button
             onClick={handleExpand}
-            className="text-gray-400 hover:text-gray-200 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors"
             title="View recommendation"
           >
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
@@ -78,11 +79,25 @@ export default function AlertCard({
       </div>
 
       {expanded && (
-        <div className="bg-gray-800 rounded-lg p-3 text-sm text-gray-300 leading-relaxed">
+        <div className="bg-surface-hover rounded-2xl p-3 text-sm text-foreground/90 leading-relaxed">
           {loadingRec ? (
-            <p className="text-gray-500 italic">Loading AI recommendation...</p>
+            <p className="text-muted-foreground italic">Loading AI recommendation...</p>
           ) : (
-            <p className="whitespace-pre-wrap">{recommendation}</p>
+            <ReactMarkdown
+              components={{
+                h1: (props) => <p className="font-semibold mb-1" {...props} />,
+                h2: (props) => <p className="font-semibold mb-1" {...props} />,
+                h3: (props) => <p className="font-semibold mb-1" {...props} />,
+                p:  (props) => <p className="mb-2 last:mb-0" {...props} />,
+                strong: (props) => <strong className="font-semibold text-foreground" {...props} />,
+                ul: (props) => <ul className="list-disc pl-4 mb-2 space-y-0.5" {...props} />,
+                ol: (props) => <ol className="list-decimal pl-4 mb-2 space-y-0.5" {...props} />,
+                li: (props) => <li {...props} />,
+              }}
+            >
+              { }
+              {(recommendation ?? "").replace(/\\n/g, "\n")}
+            </ReactMarkdown>
           )}
         </div>
       )}
